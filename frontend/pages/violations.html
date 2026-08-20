@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Violations - Speed Detection System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>SpeedDetect</h2>
+                <p>Traffic Violation System</p>
+            </div>
+            <nav>
+                <a href="/pages/dashboard.html"><span class="icon">&#9632;</span> Dashboard</a>
+                <a href="/pages/cameras.html"><span class="icon">&#128247;</span> Cameras</a>
+                <a href="/pages/violations.html" class="active"><span class="icon">&#9888;</span> Violations</a>
+                <a href="/pages/reports.html"><span class="icon">&#128202;</span> Reports</a>
+                <a href="/pages/settings.html"><span class="icon">&#9881;</span> Settings</a>
+            </nav>
+            <a href="#" class="logout" onclick="logout()">Logout</a>
+        </aside>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Violations</h1>
+            </div>
+            <div class="filters">
+                <div class="form-group">
+                    <label>Camera</label>
+                    <select id="filterCamera" onchange="loadViolations()"><option value="">All Cameras</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Plate</label>
+                    <input type="text" id="filterPlate" placeholder="Search plate..." oninput="loadViolations()">
+                </div>
+                <div class="form-group">
+                    <label>From</label>
+                    <input type="date" id="filterDateFrom" onchange="loadViolations()">
+                </div>
+                <div class="form-group">
+                    <label>To</label>
+                    <input type="date" id="filterDateTo" onchange="loadViolations()">
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="filterStatus" onchange="loadViolations()">
+                        <option value="">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="dismissed">Dismissed</option>
+                        <option value="processed">Processed</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary btn-sm filter-btn" onclick="resetFilters()">Reset</button>
+            </div>
+            <div class="table-container">
+                <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('id')">ID</th>
+                            <th class="sortable" onclick="sortTable('camera_name')">Camera</th>
+                            <th>Vehicle ID</th>
+                            <th class="sortable" onclick="sortTable('vehicle_type')">Type</th>
+                            <th class="sortable" onclick="sortTable('plate_number')">Plate</th>
+                            <th class="sortable" onclick="sortTable('speed')">Speed</th>
+                            <th>Limit</th>
+                            <th class="sortable" onclick="sortTable('violation_time')">Time</th>
+                            <th class="sortable" onclick="sortTable('status')">Status</th>
+                            <th>Evidence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="violationsTable"><tr><td colspan="10" class="loading">Loading...</td></tr></tbody>
+                </table>
+                </div>
+            </div>
+            <div class="modal-overlay" id="imageModal" style="display:none;" onclick="closeModal()">
+                <div class="modal">
+                    <h3>Violation Evidence</h3>
+                    <img id="modalImage" src="" alt="Evidence">
+                    <div id="modalInfo" style="margin-top:12px;font-size:14px;"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="/js/auth.js"></script>
+    <script src="/js/violations.js"></script>
+</body>
+</html>

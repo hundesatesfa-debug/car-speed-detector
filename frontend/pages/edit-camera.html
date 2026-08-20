@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Camera - Speed Detection System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>SpeedDetect</h2>
+                <p>Traffic Violation System</p>
+            </div>
+            <nav>
+                <a href="/pages/dashboard.html"><span class="icon">&#9632;</span> Dashboard</a>
+                <a href="/pages/cameras.html" class="active"><span class="icon">&#128247;</span> Cameras</a>
+                <a href="/pages/violations.html"><span class="icon">&#9888;</span> Violations</a>
+                <a href="/pages/reports.html"><span class="icon">&#128202;</span> Reports</a>
+                <a href="/pages/settings.html"><span class="icon">&#9881;</span> Settings</a>
+            </nav>
+            <a href="#" class="logout" onclick="logout()">Logout</a>
+        </aside>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Edit Camera</h1>
+            </div>
+            <div class="form-card">
+                <form id="editCameraForm">
+                    <input type="hidden" id="cameraId">
+                    <div class="form-group">
+                        <label>Camera Name *</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Location *</label>
+                        <input type="text" id="location" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Speed Limit (km/h)</label>
+                            <input type="number" id="speed_limit" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Measurement Distance (meters)</label>
+                            <input type="number" id="distance_meters" min="1" step="0.1">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="status">
+                            <option value="active">Active</option>
+                            <option value="disabled">Disabled</option>
+                        </select>
+                    </div>
+                    <div id="msg" class="error-msg" style="display:none;"></div>
+                    <button type="submit" class="btn btn-primary" style="margin-top:16px;">Save Changes</button>
+                </form>
+            </div>
+        </main>
+    </div>
+    <script src="/js/auth.js"></script>
+    <script src="/js/cameras.js"></script>
+</body>
+</html>

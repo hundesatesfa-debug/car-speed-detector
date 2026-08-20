@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+models/yolo11n.pt
+violations/
+plate_debug/
+.idea/
+.vscode/
+*.egg-info/
+dist/
+build/
+*.log

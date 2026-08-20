@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Speed Detection System</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+    <div class="app-layout">
+        <button class="hamburger" id="hamburger" onclick="toggleSidebar()">&#9776;</button>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>SpeedDetect</h2>
+                <p>Traffic Violation System</p>
+            </div>
+            <nav>
+                <a href="/pages/dashboard.html"><span class="icon">&#9632;</span> Dashboard</a>
+                <a href="/pages/cameras.html"><span class="icon">&#128247;</span> Cameras</a>
+                <a href="/pages/violations.html"><span class="icon">&#9888;</span> Violations</a>
+                <a href="/pages/reports.html" class="active"><span class="icon">&#128202;</span> Reports</a>
+                <a href="/pages/settings.html"><span class="icon">&#9881;</span> Settings</a>
+            </nav>
+            <a href="#" class="logout" onclick="logout()">Logout</a>
+        </aside>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Reports</h1>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card red"><div class="label">Total Violations</div><div class="value" id="totalViolations">-</div></div>
+                <div class="stat-card blue"><div class="label">Total Cameras</div><div class="value" id="totalCameras">-</div></div>
+                <div class="stat-card green"><div class="label">Active Cameras</div><div class="value" id="activeCameras">-</div></div>
+                <div class="stat-card orange"><div class="label">Average Speed</div><div class="value" id="avgSpeed">-</div></div>
+            </div>
+            <div class="two-col">
+                <div class="chart-container">
+                    <h3>Violations by Camera</h3>
+                    <div class="bar-chart" id="byCameraChart"></div>
+                </div>
+                <div class="chart-container">
+                    <h3>Violations by Vehicle Type</h3>
+                    <div class="bar-chart" id="byTypeChart"></div>
+                </div>
+            </div>
+            <div class="table-container" style="margin-top:20px;">
+                <h3>Top Violating Plates</h3>
+                <table>
+                    <thead><tr><th>Plate</th><th>Violations</th><th>Highest Speed</th></tr></thead>
+                    <tbody id="topPlates"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+                </table>
+            </div>
+            <div class="table-container">
+                <h3>Recent Violations</h3>
+                <table>
+                    <thead><tr><th>ID</th><th>Camera</th><th>Plate</th><th>Speed</th><th>Time</th><th>Status</th></tr></thead>
+                    <tbody id="recentViolations"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="/js/auth.js"></script>
+    <script src="/js/reports.js"></script>
+</body>
+</html>

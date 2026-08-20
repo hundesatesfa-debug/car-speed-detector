@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cameras - Speed Detection System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>SpeedDetect</h2>
+                <p>Traffic Violation System</p>
+            </div>
+            <nav>
+                <a href="/pages/dashboard.html"><span class="icon">&#9632;</span> Dashboard</a>
+                <a href="/pages/cameras.html" class="active"><span class="icon">&#128247;</span> Cameras</a>
+                <a href="/pages/violations.html"><span class="icon">&#9888;</span> Violations</a>
+                <a href="/pages/reports.html"><span class="icon">&#128202;</span> Reports</a>
+                <a href="/pages/settings.html"><span class="icon">&#9881;</span> Settings</a>
+            </nav>
+            <a href="#" class="logout" onclick="logout()">Logout</a>
+        </aside>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Cameras</h1>
+                <a href="/pages/add-camera.html" class="btn btn-success">+ Add Camera</a>
+            </div>
+            <div class="table-container">
+                <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Location</th><th>Speed Limit</th><th>Status</th><th>Video</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="camerasTable"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody>
+                </table>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="/js/auth.js"></script>
+    <script src="/js/cameras.js"></script>
+</body>
+</html>
