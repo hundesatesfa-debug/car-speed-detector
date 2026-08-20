@@ -2,6 +2,7 @@ import cv2
 import os
 import time
 import logging
+import threading
 from datetime import datetime
 
 from backend.config import Config
@@ -32,10 +33,19 @@ VEHICLE_CLASSES_MAP = {
 
 _run_status = {}
 _run_ttl = {}
+_stop_flags = {}
 
 
 def get_run_status(run_id):
     return _run_status.get(run_id, {"status": "unknown"})
+
+
+def request_stop(run_id):
+    if run_id in _stop_flags:
+        _stop_flags[run_id] = True
+        security_logger.info(f"Stop requested for run {run_id}")
+        return True
+    return False
 
 
 def _cleanup_old_runs():
@@ -44,18 +54,21 @@ def _cleanup_old_runs():
     for rid in expired:
         _run_status.pop(rid, None)
         _run_ttl.pop(rid, None)
+        _stop_flags.pop(rid, None)
 
 
-def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=10.0):
+def run_detection(camera_id, stream_source=None, speed_limit=50, distance_meters=10.0):
     _cleanup_old_runs()
 
     ensure_folder(Config.VIOLATIONS_FOLDER)
 
+    source_display = stream_source or "default"
     run_id = execute_insert(
         "INSERT INTO detection_runs (camera_id, video_source, started_at, status) VALUES (%s, %s, NOW(), 'running')",
-        (camera_id, video_source or Config.VIDEO_PATH),
+        (camera_id, source_display),
     )
 
+    _stop_flags[run_id] = False
     _run_status[run_id] = {
         "status": "loading",
         "frames": 0,
@@ -63,19 +76,21 @@ def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=
         "violations": 0,
         "speeds": [],
         "speed_limit": speed_limit,
+        "run_id": run_id,
+        "camera_id": camera_id,
     }
     _run_ttl[run_id] = time.time()
 
     try:
-        video = cv2.VideoCapture(video_source or Config.VIDEO_PATH)
-        if not video.isOpened():
+        cap = cv2.VideoCapture(stream_source)
+        if not cap.isOpened():
             execute_update("UPDATE detection_runs SET status='failed' WHERE id=%s", (run_id,))
             _run_status[run_id]["status"] = "failed"
-            _run_status[run_id]["error"] = "Could not open video"
-            security_logger.error(f"Detection run {run_id}: Could not open video {video_source}")
-            return {"error": "Could not open video", "run_id": run_id}
+            _run_status[run_id]["error"] = "Could not open stream"
+            security_logger.error(f"Detection run {run_id}: Could not open stream {stream_source}")
+            return {"error": "Could not open stream", "run_id": run_id}
 
-        fps = video.get(cv2.CAP_PROP_FPS)
+        fps = cap.get(cv2.CAP_PROP_FPS)
         if fps <= 0:
             fps = 30.0
 
@@ -87,16 +102,26 @@ def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=
         all_speeds = []
         line_a_y = 200
         line_b_y = 400
+        consecutive_failures = 0
+        max_failures = 60
 
         speed_state = SpeedState()
 
-        while True:
-            success, frame = video.read()
-            if not success:
-                break
+        _run_status[run_id]["status"] = "processing"
+        security_logger.info(f"Detection run {run_id}: Stream opened, processing live feed")
 
+        while not _stop_flags.get(run_id, False):
+            success, frame = cap.read()
+            if not success:
+                consecutive_failures += 1
+                if consecutive_failures > max_failures:
+                    security_logger.warning(f"Detection run {run_id}: Too many consecutive read failures, stopping")
+                    break
+                time.sleep(0.1)
+                continue
+
+            consecutive_failures = 0
             frame_number += 1
-            _run_status[run_id]["status"] = "processing"
             _run_status[run_id]["frames"] = frame_number
 
             result = detect_and_track(frame)
@@ -139,7 +164,7 @@ def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=
                         "speed": round(speed, 2),
                     }
                     all_speeds.append(speed_entry)
-                    _run_status[run_id]["speeds"] = list(all_speeds)
+                    _run_status[run_id]["speeds"] = list(all_speeds[-50:])
 
                     if object_id not in vehicle_db_ids:
                         vehicle_db_id = execute_insert(
@@ -192,19 +217,24 @@ def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=
 
                         mark_violation(speed_state, object_id)
                         violations_found += 1
+                        _run_status[run_id]["violations"] = violations_found
                         security_logger.info(
                             f"Violation: run={run_id} vehicle={vehicle_type} id={object_id} speed={speed:.1f} plate={plate_text}"
                         )
 
-        video.release()
+        cap.release()
+
+        was_stopped = _stop_flags.get(run_id, False)
+        final_status = "stopped" if was_stopped else "completed"
 
         execute_update(
-            "UPDATE detection_runs SET status='completed', ended_at=NOW() WHERE id=%s",
-            (run_id,),
+            "UPDATE detection_runs SET status=%s, ended_at=NOW() WHERE id=%s",
+            (final_status, run_id),
         )
 
-        _run_status[run_id]["status"] = "completed"
+        _run_status[run_id]["status"] = final_status
         _run_status[run_id]["violations"] = violations_found
+        _stop_flags.pop(run_id, None)
 
         result = {
             "run_id": run_id,
@@ -213,9 +243,10 @@ def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=
             "violations": violations_found,
             "speeds_detected": all_speeds,
             "speed_limit": speed_limit,
+            "status": final_status,
         }
         app_logger.info(
-            f"Detection completed: run={run_id} frames={frame_number} vehicles={vehicles_detected} violations={violations_found} speeds={len(all_speeds)}"
+            f"Detection {final_status}: run={run_id} frames={frame_number} vehicles={vehicles_detected} violations={violations_found} speeds={len(all_speeds)}"
         )
         return result
 
@@ -224,4 +255,5 @@ def run_detection(camera_id, video_source=None, speed_limit=50, distance_meters=
         execute_update("UPDATE detection_runs SET status='failed' WHERE id=%s", (run_id,))
         _run_status[run_id]["status"] = "failed"
         _run_status[run_id]["error"] = str(e)
+        _stop_flags.pop(run_id, None)
         return {"error": str(e), "run_id": run_id}

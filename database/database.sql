@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS cameras (
     speed_limit DECIMAL(6,2) NOT NULL,
     measurement_distance DECIMAL(8,2) NOT NULL,
     camera_token_hash VARCHAR(255) NOT NULL DEFAULT '',
+    stream_source VARCHAR(500) DEFAULT '',
     status ENUM('active','disabled') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

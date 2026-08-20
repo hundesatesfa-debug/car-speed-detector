@@ -1,5 +1,8 @@
 import os
+import re
 import logging
+import time
+import threading
 from flask import Blueprint, request, jsonify
 from backend.routes.auth import token_required, role_required
 from backend.database import execute_query, execute_insert, execute_update
@@ -11,19 +14,19 @@ security_logger = logging.getLogger("security")
 cameras_bp = Blueprint("cameras", __name__)
 
 
-def _validate_video_path(video_source):
-    if video_source is None:
-        return Config.VIDEO_PATH
-    if os.path.isabs(video_source):
-        raise ValueError("Absolute paths not allowed")
-    if ".." in video_source:
-        raise ValueError("Path traversal not allowed")
-    full = os.path.normpath(os.path.join(Config.PROJECT_ROOT, video_source))
-    if not full.startswith(os.path.normpath(Config.PROJECT_ROOT)):
-        raise ValueError("Path outside project directory")
-    if not os.path.exists(full):
-        raise ValueError("File not found")
-    return full
+def _validate_stream_source(stream_source):
+    if not stream_source or not stream_source.strip():
+        return ""
+    s = stream_source.strip()
+    if s.isdigit():
+        return s
+    if s.startswith("rtsp://") or s.startswith("rtmp://") or s.startswith("http://") or s.startswith("https://"):
+        return s
+    if os.path.splitext(s)[1].lower() in (".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv"):
+        return s
+    raise ValueError(
+        "Invalid stream source. Use: 0 for webcam, RTSP/HTTP URL, or video file path"
+    )
 
 
 @cameras_bp.route("", methods=["GET"])
@@ -77,18 +80,25 @@ def add_camera():
     if distance < 1 or distance > 1000:
         return jsonify({"error": "Distance must be between 1 and 1000 meters"}), 400
 
+    stream_source = ""
+    if "stream_source" in data and data["stream_source"].strip():
+        try:
+            stream_source = _validate_stream_source(data["stream_source"])
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
     import secrets as _secrets
     camera_code = data.get("camera_code", f"CAM-{_secrets.token_hex(3).upper()}")
 
     camera_id = execute_insert(
         """INSERT INTO cameras
-           (camera_code, camera_name, location, speed_limit, measurement_distance, status)
-           VALUES (%s, %s, %s, %s, %s, %s)""",
-        (camera_code, name, location, speed_limit, distance, "active"),
+           (camera_code, camera_name, location, speed_limit, measurement_distance, camera_token_hash, stream_source, status)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+        (camera_code, name, location, speed_limit, distance, "", stream_source, "active"),
     )
 
     camera = execute_query("SELECT * FROM cameras WHERE id = %s", (camera_id,))
-    security_logger.info(f"Camera created: id={camera_id} name={name} by={request.user.get('username')}")
+    security_logger.info(f"Camera created: id={camera_id} name={name} stream={stream_source} by={request.user.get('username')}")
     return jsonify({"camera": camera[0]}), 201
 
 
@@ -104,7 +114,7 @@ def update_camera(camera_id):
     if not cameras:
         return jsonify({"error": "Camera not found"}), 404
 
-    allowed_fields = ["camera_name", "location", "speed_limit", "measurement_distance", "status"]
+    allowed_fields = ["camera_name", "location", "speed_limit", "measurement_distance", "status", "stream_source"]
     fields = []
     values = []
 
@@ -136,6 +146,15 @@ def update_camera(camera_id):
                 val = val.strip() if isinstance(val, str) else val
                 if len(val) > 200:
                     return jsonify({"error": "Location too long"}), 400
+            elif field == "stream_source":
+                val = val.strip() if isinstance(val, str) else val
+                if val:
+                    try:
+                        val = _validate_stream_source(val)
+                    except ValueError as e:
+                        return jsonify({"error": str(e)}), 400
+                else:
+                    val = ""
             fields.append(f"{field} = %s")
             values.append(val)
 
@@ -173,24 +192,26 @@ def detect_camera(camera_id):
         return jsonify({"error": "Camera not found"}), 404
 
     camera = cameras[0]
-    video_source = None
 
-    data = request.get_json() or {}
-    if "video_source" in data:
-        video_source = data["video_source"]
-        try:
-            video_source = _validate_video_path(video_source)
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+    existing_runs = execute_query(
+        "SELECT id FROM detection_runs WHERE camera_id = %s AND status = 'running'",
+        (camera_id,),
+    )
+    if existing_runs:
+        return jsonify({"error": "Detection already running for this camera", "run_id": existing_runs[0]["id"]}), 409
+
+    stream_source = camera.get("stream_source", "") or ""
+
+    if not stream_source:
+        return jsonify({"error": "No stream source configured. Edit this camera and set a stream source (e.g. 0 for webcam, or an RTSP/HTTP URL)."}), 400
 
     from backend.services.detection import run_detection
-    import threading
 
     def run_in_thread():
         try:
             result = run_detection(
                 camera_id=camera_id,
-                video_source=video_source,
+                stream_source=stream_source,
                 speed_limit=float(camera["speed_limit"]),
                 distance_meters=float(camera["measurement_distance"]),
             )
@@ -207,7 +228,6 @@ def detect_camera(camera_id):
     thread = threading.Thread(target=run_in_thread, daemon=True)
     thread.start()
 
-    import time
     time.sleep(0.5)
     runs = execute_query(
         "SELECT id FROM detection_runs WHERE camera_id = %s ORDER BY id DESC LIMIT 1",
@@ -215,8 +235,34 @@ def detect_camera(camera_id):
     )
     latest_run_id = runs[0]["id"] if runs else None
 
-    security_logger.info(f"Detection started: camera={camera_id} run={latest_run_id} by={request.user.get('username')}")
+    security_logger.info(f"Detection started: camera={camera_id} stream={stream_source} run={latest_run_id} by={request.user.get('username')}")
     return jsonify({"message": "Detection started", "camera_id": camera_id, "run_id": latest_run_id})
+
+
+@cameras_bp.route("/<int:camera_id>/stop", methods=["POST"])
+@token_required
+@role_required("admin")
+def stop_detection(camera_id):
+    cameras = execute_query("SELECT id FROM cameras WHERE id = %s", (camera_id,))
+    if not cameras:
+        return jsonify({"error": "Camera not found"}), 404
+
+    running = execute_query(
+        "SELECT id FROM detection_runs WHERE camera_id = %s AND status = 'running' ORDER BY id DESC LIMIT 1",
+        (camera_id,),
+    )
+    if not running:
+        return jsonify({"error": "No active detection running for this camera"}), 404
+
+    run_id = running[0]["id"]
+    from backend.services.detection import request_stop
+    stopped = request_stop(run_id)
+
+    if stopped:
+        security_logger.info(f"Detection stop requested: camera={camera_id} run={run_id} by={request.user.get('username')}")
+        return jsonify({"message": "Stop requested", "run_id": run_id})
+    else:
+        return jsonify({"error": "Could not stop detection"}), 400
 
 
 @cameras_bp.route("/detection-status/<int:run_id>", methods=["GET"])
